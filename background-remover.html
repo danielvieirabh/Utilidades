@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Removedor de Fundo Automático</title>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2ecc71;
+            --bg-color: #f4f6f9;
+            --text-color: #2c3e50;
+            --white: #fff;
+            --light-gray: #ecf0f1;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 5px;
+            text-align: center;
+        }
+
+        p {
+            margin-bottom: 20px;
+            color: #7f8c8d;
+            text-align: center;
+        }
+
+        .container {
+            background: var(--white);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        /* Custom file input */
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            padding: 12px 25px;
+            background-color: var(--primary-color);
+            color: var(--white);
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .file-input-wrapper:hover {
+            background-color: #2980b9;
+        }
+        .file-input-wrapper input[type="file"] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        #status {
+            font-weight: bold;
+            min-height: 24px;
+            transition: color 0.3s;
+            text-align: center;
+        }
+
+        #result-container {
+            display: none;
+            border: 2px dashed var(--light-gray);
+            padding: 10px;
+            border-radius: 5px;
+            width: 100%;
+            box-sizing: border-box;
+            justify-content: center;
+            align-items: center;
+            min-height: 250px;
+            transition: min-height 0.3s;
+            background-image: linear-gradient(45deg, #ccc 25%, transparent 25%), 
+                              linear-gradient(-45deg, #ccc 25%, transparent 25%), 
+                              linear-gradient(45deg, transparent 75%, #ccc 75%), 
+                              linear-gradient(-45deg, transparent 75%, #ccc 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        #result-image {
+            display: none;
+            max-width: 100%;
+            height: auto;
+            margin: 0 auto;
+            border-radius: 3px;
+        }
+
+        /* Animação de carregamento */
+        .loader {
+            border: 6px solid var(--light-gray);
+            border-top: 6px solid var(--primary-color);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1.2s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #downloadBtn {
+            padding: 12px 25px;
+            color: var(--white);
+            background-color: var(--secondary-color);
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s, opacity 0.3s;
+            font-weight: bold;
+        }
+        #downloadBtn:hover:not(:disabled) {
+            background-color: #27ae60;
+        }
+        #downloadBtn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Removedor de Fundo de Imagem</h1>
+    <p>Selecione uma imagem e a inteligência artificial removerá o fundo no próprio navegador.</p>
+
+    <div class="container">
+        <div class="file-input-wrapper">
+            <span>Selecionar Imagem</span>
+            <input type="file" id="imageUpload" accept="image/*">
+        </div>
+        
+        <p id="status">Aguardando imagem...</p>
+
+        <div id="result-container">
+            <div class="loader"></div>
+            <img id="result-image" src="" alt="Imagem com fundo removido">
+        </div>
+
+        <button id="downloadBtn" disabled>Baixar Imagem</button>
+    </div>
+
+    <script type="module">
+        // Importa a biblioteca usando a extensão mjs correta para o navegador
+        import removeBackground from 'https://unpkg.com/@imgly/background-removal@latest/dist/browser.mjs';
+
+        const imageUpload = document.getElementById('imageUpload');
+        const statusEl = document.getElementById('status');
+        const resultContainer = document.getElementById('result-container');
+        const resultImage = document.getElementById('result-image');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const loader = document.querySelector('.loader');
+
+        let resultUrl = null;
+
+        imageUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            statusEl.textContent = 'Iniciando IA... (Pode demorar um pouco na primeira vez)';
+            statusEl.style.color = 'var(--primary-color)';
+            
+            resultContainer.style.display = 'flex';
+            resultContainer.style.minHeight = '250px';
+            loader.style.display = 'block';
+            resultImage.style.display = 'none';
+
+            downloadBtn.disabled = true;
+            if (resultUrl) {
+                URL.revokeObjectURL(resultUrl);
+                resultUrl = null;
+            }
+
+            // Configuração OBRIGATÓRIA para carregar os modelos da IA do CDN
+            const config = {
+                publicPath: 'https://unpkg.com/@imgly/background-removal@latest/dist/',
+                progress: (key, current, total) => {
+                    // Exibe o progresso do download dos modelos para o usuário
+                    if (total) {
+                        const percent = Math.round((current / total) * 100);
+                        statusEl.textContent = `Processando a mágica... ${percent}%`;
+                    }
+                }
+            };
+
+            removeBackground(file, config)
+                .then((blob) => {
+                    resultUrl = URL.createObjectURL(blob);
+                    
+                    loader.style.display = 'none';
+                    resultImage.src = resultUrl;
+                    resultImage.style.display = 'block';
+                    resultContainer.style.minHeight = 'auto';
+                    
+                    statusEl.textContent = 'Fundo removido com sucesso!';
+                    statusEl.style.color = 'var(--secondary-color)';
+                    downloadBtn.disabled = false;
+                })
+                .catch((error) => {
+                    console.error('Erro ao remover o fundo:', error);
+                    statusEl.textContent = 'Ocorreu um erro. Tente uma imagem diferente.';
+                    statusEl.style.color = '#e74c3c';
+                    loader.style.display = 'none';
+                    resultContainer.style.display = 'none';
+                });
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            if (!resultUrl) return;
+
+            const link = document.createElement('a');
+            link.href = resultUrl;
+            const originalFileName = imageUpload.files[0]?.name.split('.').slice(0, -1).join('.') || 'imagem';
+            link.download = `${originalFileName}-sem-fundo.png`;
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+    </script>
+
+</body>
+</html>

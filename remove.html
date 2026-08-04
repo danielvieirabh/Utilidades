@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Removedor de Marca d'água Manual</title>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2ecc71;
+            --danger-color: #e74c3c;
+            --bg-color: #f4f6f9;
+            --text-color: #2c3e50;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 5px;
+        }
+
+        p {
+            margin-bottom: 20px;
+            color: #7f8c8d;
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+        }
+
+        input[type="file"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background: #fff;
+        }
+
+        button {
+            padding: 10px 15px;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.3s, opacity 0.3s;
+            font-weight: bold;
+        }
+
+        .btn-remove { background-color: var(--danger-color); }
+        .btn-remove:hover:not(:disabled) { background-color: #c0392b; }
+
+        .btn-undo { background-color: #95a5a6; }
+        .btn-undo:hover:not(:disabled) { background-color: #7f8c8d; }
+
+        .btn-download { background-color: var(--secondary-color); }
+        .btn-download:hover:not(:disabled) { background-color: #27ae60; }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #canvas-container {
+            position: relative;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        canvas {
+            display: block;
+            max-width: 100%;
+            height: auto;
+        }
+
+        #uiCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Removedor de Marca d'água</h1>
+    <p>Faça o upload da imagem, clique e arraste para selecionar, depois aplique a remoção.</p>
+
+    <div class="controls">
+        <input type="file" id="imageUpload" accept="image/*">
+        <button id="removeBtn" class="btn-remove" disabled>Aplicar Desfoque</button>
+        <button id="undoBtn" class="btn-undo" disabled>Desfazer</button>
+        <button id="downloadBtn" class="btn-download" disabled>Baixar Imagem</button>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="mainCanvas"></canvas>
+        <canvas id="uiCanvas"></canvas>
+    </div>
+
+    <script>
+        const imageUpload = document.getElementById('imageUpload');
+        const removeBtn = document.getElementById('removeBtn');
+        const undoBtn = document.getElementById('undoBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const container = document.getElementById('canvas-container');
+        
+        const mainCanvas = document.getElementById('mainCanvas');
+        const mainCtx = mainCanvas.getContext('2d');
+        const uiCanvas = document.getElementById('uiCanvas');
+        const uiCtx = uiCanvas.getContext('2d');
+
+        let isDrawing = false;
+        let startX, startY;
+        let selectionBox = null;
+        let historyStack = []; 
+        let imageLoaded = false; // Trava de segurança
+
+        // Redimensiona ambos os canvas para caberem a imagem
+        function resizeCanvases(width, height) {
+            mainCanvas.width = width;
+            mainCanvas.height = height;
+            uiCanvas.width = width;
+            uiCanvas.height = height;
+            container.style.width = width + 'px';
+            container.style.maxWidth = '100%';
+        }
+
+        // Reseta completamente a seleção e bloqueia o botão
+        function resetSelection() {
+            uiCtx.clearRect(0, 0, uiCanvas.width, uiCanvas.height);
+            selectionBox = null;
+            removeBtn.disabled = true;
+        }
+
+        // Salva o estado atual para o botão Desfazer
+        function saveState() {
+            historyStack.push(mainCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height));
+            undoBtn.disabled = false;
+        }
+
+        // Upload da Imagem
+        imageUpload.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    resizeCanvases(img.width, img.height);
+                    mainCtx.drawImage(img, 0, 0);
+                    imageLoaded = true;
+                    
+                    historyStack = [];
+                    undoBtn.disabled = true;
+                    downloadBtn.disabled = false;
+                    resetSelection();
+                }
+                img.src = event.target.result;
+            }
+            reader.readAsDataURL(file);
+        });
+
+        // Eventos do Mouse
+        uiCanvas.addEventListener('mousedown', function(e) {
+            if (!imageLoaded) return; 
+            
+            const rect = uiCanvas.getBoundingClientRect();
+            const scaleX = uiCanvas.width / rect.width;
+            const scaleY = uiCanvas.height / rect.height;
+            
+            startX = (e.clientX - rect.left) * scaleX;
+            startY = (e.clientY - rect.top) * scaleY;
+            isDrawing = true;
+        });
+
+        uiCanvas.addEventListener('mousemove', function(e) {
+            if (!isDrawing || !imageLoaded) return;
+            
+            const rect = uiCanvas.getBoundingClientRect();
+            const scaleX = uiCanvas.width / rect.width;
+            const scaleY = uiCanvas.height / rect.height;
+            
+            const currentX = (e.clientX - rect.left) * scaleX;
+            const currentY = (e.clientY - rect.top) * scaleY;
+
+            selectionBox = {
+                x: Math.min(startX, currentX),
+                y: Math.min(startY, currentY),
+                w: Math.abs(currentX - startX),
+                h: Math.abs(currentY - startY)
+            };
+
+            // BUG CORRIGIDO AQUI: Apenas limpa a parte visual do canvas, 
+            // sem destruir a variável selectionBox
+            uiCtx.clearRect(0, 0, uiCanvas.width, uiCanvas.height);
+            
+            // Desenha o quadrado
+            uiCtx.fillStyle = 'rgba(231, 76, 60, 0.3)';
+            uiCtx.fillRect(selectionBox.x, selectionBox.y, selectionBox.w, selectionBox.h);
+            uiCtx.strokeStyle = '#e74c3c';
+            uiCtx.lineWidth = 2;
+            uiCtx.strokeRect(selectionBox.x, selectionBox.y, selectionBox.w, selectionBox.h);
+            
+            // Reabilita o botão se a área for maior que 5x5 pixels
+            if (selectionBox.w > 5 && selectionBox.h > 5) {
+                removeBtn.disabled = false;
+            }
+        });
+
+        uiCanvas.addEventListener('mouseup', function() {
+            isDrawing = false;
+            if (!selectionBox || selectionBox.w <= 5 || selectionBox.h <= 5) {
+                resetSelection();
+            }
+        });
+
+        // Desfazer
+        undoBtn.addEventListener('click', function() {
+            if (historyStack.length > 0) {
+                const previousState = historyStack.pop();
+                mainCtx.putImageData(previousState, 0, 0);
+                if (historyStack.length === 0) undoBtn.disabled = true;
+                resetSelection();
+            }
+        });
+
+        // Aplicar Blur na seleção
+        removeBtn.addEventListener('click', function() {
+            if (!selectionBox) return;
+
+            saveState();
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = mainCanvas.width;
+            tempCanvas.height = mainCanvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(mainCanvas, 0, 0);
+
+            mainCtx.save();
+            mainCtx.beginPath();
+            mainCtx.rect(selectionBox.x, selectionBox.y, selectionBox.w, selectionBox.h);
+            mainCtx.clip();
+            
+            mainCtx.filter = 'blur(15px)';
+            mainCtx.drawImage(tempCanvas, 0, 0); 
+            mainCtx.restore();
+
+            resetSelection();
+        });
+
+        // Baixar Imagem
+        downloadBtn.addEventListener('click', function() {
+            const link = document.createElement('a');
+            link.download = 'imagem_editada.png';
+            link.href = mainCanvas.toDataURL('image/png', 1.0);
+            link.click();
+        });
+    </script>
+</body>
+</html>

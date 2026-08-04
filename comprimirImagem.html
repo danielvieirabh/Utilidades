@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compressor de Imagens</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #d9534f;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .input-section, .controls-section, .output-section {
+            margin-bottom: 25px;
+            padding: 15px;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            background-color: #fafafa;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        input[type="file"] {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: calc(100% - 22px);
+            box-sizing: border-box;
+            background-color: #fff;
+        }
+        .controls-group {
+            margin-top: 15px;
+        }
+        input[type="range"] {
+            width: 100%;
+            margin-top: 5px;
+        }
+        .output-info {
+            margin-top: 15px;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #0056b3;
+        }
+        .output-info span {
+            background-color: #e9f5ff;
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+        #downloadLink {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 15px;
+            background-color: #28a745;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+        #downloadLink:hover {
+            background-color: #218838;
+        }
+        .image-display {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .image-box {
+            flex: 1;
+            min-width: 300px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+            background: #fff;
+        }
+        .image-box h3 {
+            margin-top: 0;
+            text-align: center;
+            color: #555;
+        }
+        .image-box img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Compressor de Imagens (Redutor de MB)</h1>
+
+        <div class="input-section">
+            <label for="imageInput">1. Selecione uma imagem:</label>
+            <input type="file" id="imageInput" accept="image/*">
+        </div>
+
+        <div class="controls-section hidden" id="controlsSection">
+            <label for="qualitySlider">2. Ajuste a Qualidade (e o tamanho do arquivo):</label>
+            <div class="controls-group">
+                <input type="range" id="qualitySlider" min="0" max="100" value="80">
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em; color: #666;">
+                    <span>Menor Tamanho</span>
+                    <span>Qualidade <b id="qualityValue">80</b>%</span>
+                    <span>Maior Qualidade</span>
+                </div>
+            </div>
+            <div class="output-info">
+                Tamanho Original: <span id="originalSize">...</span> | 
+                Novo Tamanho (aprox.): <span id="newSize">...</span>
+            </div>
+        </div>
+
+        <div class="output-section hidden" id="outputSection">
+            <h3>3. Compare e Baixe</h3>
+            <div class="image-display">
+                <div class="image-box">
+                    <h3>Original</h3>
+                    <img id="originalImage" alt="Imagem Original">
+                </div>
+                <div class="image-box">
+                    <h3>Comprimida</h3>
+                    <img id="compressedImage" alt="Imagem Comprimida">
+                </div>
+            </div>
+            <a id="downloadLink" download="imagem_comprimida.jpg" class="hidden">Baixar Imagem Comprimida</a>
+        </div>
+    </div>
+
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const originalImage = document.getElementById('originalImage');
+        const compressedImage = document.getElementById('compressedImage');
+        const qualitySlider = document.getElementById('qualitySlider');
+        const qualityValue = document.getElementById('qualityValue');
+        const downloadLink = document.getElementById('downloadLink');
+        const controlsSection = document.getElementById('controlsSection');
+        const outputSection = document.getElementById('outputSection');
+        const originalSizeSpan = document.getElementById('originalSize');
+        const newSizeSpan = document.getElementById('newSize');
+
+        let imageFile = null;
+
+        // Função para formatar o tamanho do arquivo
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        // Carrega a imagem selecionada
+        imageInput.addEventListener('change', (event) => {
+            imageFile = event.target.files[0];
+            if (imageFile) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    originalImage.src = e.target.result;
+                    originalImage.onload = () => {
+                        // Exibe as seções de controle e saída
+                        controlsSection.classList.remove('hidden');
+                        outputSection.classList.remove('hidden');
+                        
+                        // Mostra o tamanho original
+                        originalSizeSpan.textContent = formatBytes(imageFile.size);
+
+                        // Inicia a compressão com o valor padrão do slider
+                        compressImage();
+                    };
+                };
+                reader.readAsDataURL(imageFile);
+            } else {
+                // Limpa tudo se nenhum arquivo for selecionado
+                controlsSection.classList.add('hidden');
+                outputSection.classList.add('hidden');
+                originalImage.src = '';
+                compressedImage.src = '';
+                imageFile = null;
+            }
+        });
+
+        // Atualiza a compressão quando o slider é movido
+        qualitySlider.addEventListener('input', () => {
+            const quality = qualitySlider.value;
+            qualityValue.textContent = quality;
+            compressImage();
+        });
+
+        // Função principal de compressão
+        function compressImage() {
+            if (!originalImage.src) return;
+
+            const quality = parseInt(qualitySlider.value) / 100; // Converte 0-100 para 0.0-1.0
+
+            // 1. Desenha a imagem original em um canvas oculto
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = originalImage.naturalWidth;
+            canvas.height = originalImage.naturalHeight;
+            ctx.drawImage(originalImage, 0, 0);
+
+            // 2. Exporta a imagem do canvas como JPEG com a qualidade definida
+            // O 'image/jpeg' é a chave para a compressão com perda de qualidade
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+            compressedImage.src = compressedDataUrl;
+
+            // 3. Atualiza o link de download
+            downloadLink.href = compressedDataUrl;
+            downloadLink.classList.remove('hidden');
+
+            // 4. Calcula e exibe o novo tamanho do arquivo
+            // A conversão de DataURL para Blob nos dá o tamanho real do arquivo
+            fetch(compressedDataUrl)
+                .then(res => res.blob())
+                .then(blob => {
+                    newSizeSpan.textContent = formatBytes(blob.size);
+                });
+        }
+    </script>
+</body>
+</html>

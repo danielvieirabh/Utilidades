@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roleta da Sorte - Uai Animo</title>
+    <style>
+        :root {
+            --primary-color: #ff7e67;
+            --bg-color: #fdfbf7;
+            --text-color: #333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            color: blue;
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 400px;
+            box-sizing: border-box;
+        }
+
+        textarea {
+            padding: 10px;
+            width: 100%;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 14px;
+            min-height: 80px;
+            margin-bottom: 10px;
+            font-family: inherit;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+
+        button {
+            padding: 10px 15px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+            width: 100%;
+        }
+
+        button:hover {
+            background-color: #e06c58;
+        }
+
+        /* Melhoria: Barra de rolagem para não alongar demais a página com 100 nomes */
+        ul {
+            list-style: none;
+            padding: 10px 0 0 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 15px;
+            max-height: 140px;
+            overflow-y: auto;
+            width: 100%;
+            border-top: 1px solid #eee;
+        }
+
+        li {
+            background: #eee;
+            padding: 4px 12px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .remove-btn {
+            background: #ff4c4c;
+            padding: 2px 6px;
+            font-size: 10px;
+            border-radius: 50%;
+            width: auto;
+        }
+
+        .remove-btn:hover {
+            background: #cc0000;
+        }
+
+        .wheel-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin: 20px 0;
+            aspect-ratio: 1 / 1;
+        }
+
+        .pointer {
+            position: absolute;
+            top: 50%;
+            right: -15px;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-top: 15px solid transparent;
+            border-bottom: 15px solid transparent;
+            border-right: 30px solid #2c3e50;
+            z-index: 10;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: transform 4s cubic-bezier(0.33, 1, 0.68, 1);
+            display: block;
+        }
+
+        .spin-btn {
+            font-size: 1.5rem;
+            padding: 15px 40px;
+            background-color: #2ecc71;
+            border-radius: 30px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            box-shadow: 0 4px 10px rgba(46, 204, 113, 0.4);
+            margin-bottom: 20px;
+            width: auto;
+        }
+
+        .spin-btn:hover {
+            background-color: #27ae60;
+        }
+
+        .spin-btn:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        #result {
+            font-size: 2rem;
+            color: #d35400;
+            min-height: 40px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            max-width: 90%;
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .modal-content h2 {
+            margin: 0;
+            color: #333;
+            font-size: 2rem;
+        }
+
+        #winnerNamePopup {
+            font-size: 4rem;
+            color: var(--primary-color);
+            margin: 20px 0;
+            word-break: break-word;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Sorteio Mochila - Uai Animo</h1>
+
+    <div class="controls">
+        <textarea id="namesInput" placeholder="Cole os nomes aqui, um por linha..."></textarea>
+        <button onclick="addNamesFromTextarea()">Adicionar Nomes</button>
+        <ul id="nameList"></ul>
+    </div>
+
+    <div class="wheel-wrapper">
+        <div class="pointer"></div>
+        <canvas id="wheel" width="800" height="800"></canvas>
+    </div>
+
+    <button id="spinBtn" class="spin-btn" onclick="spin()">Girar Roleta!</button>
+    
+    <div id="result"></div>
+
+    <div id="winnerModal" class="modal">
+        <div class="modal-content">
+            <h2>🎉 Temos um Vencedor! 🎉</h2>
+            <div id="winnerNamePopup"></div>
+            <button onclick="closeModal()" style="font-size: 1.2rem; padding: 10px 30px; width: auto;">Uau, Incrível!</button>
+        </div>
+    </div>
+
+    <script>
+        let names = ["João", "Maria", "José", "Ana"];
+        
+        const colors = [
+            "#FF5733", "#33FF57", "#3357FF", "#F033FF", 
+            "#33FFF0", "#FFC300", "#FF5733", "#8E44AD", 
+            "#E67E22", "#1ABC9C"
+        ];
+
+        const canvas = document.getElementById("wheel");
+        const ctx = canvas.getContext("2d");
+        const spinBtn = document.getElementById("spinBtn");
+        const resultDiv = document.getElementById("result");
+
+        let currentRotation = 0; 
+        let isSpinning = false;
+
+        function drawWheel() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Como dobramos o tamanho do canvas para HD, o centro agora é 400x400
+            const cx = 400;
+            const cy = 400;
+            const radius = 400;
+
+            if (names.length === 0) {
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+                ctx.fillStyle = "#bdc3c7";
+                ctx.fill();
+                return;
+            }
+
+            const arcSize = (2 * Math.PI) / names.length;
+
+            // Melhoria: Cálculo dinâmico da fonte. Máximo 50px, Mínimo 14px
+            const fontSize = Math.max(14, Math.min(50, Math.floor(1500 / names.length)));
+
+            for (let i = 0; i < names.length; i++) {
+                const angle = i * arcSize;
+                
+                ctx.beginPath();
+                ctx.fillStyle = colors[i % colors.length];
+                ctx.moveTo(cx, cy);
+                ctx.arc(cx, cy, radius, angle, angle + arcSize);
+                ctx.lineTo(cx, cy);
+                ctx.fill();
+
+                // Melhoria: Só desenha bordas se tiver menos de 45 itens. 
+                // Evita que o centro vire um borrão preto em listas gigantes.
+                if (names.length < 45) {
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = "rgba(255, 255, 255, 0.4)"; // Borda branca suave
+                    ctx.stroke();
+                }
+
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(angle + arcSize / 2);
+                
+                ctx.textAlign = "right";
+                // Melhoria: Alinha perfeitamente ao meio da fatia, sem precisar adivinhar a altura
+                ctx.textBaseline = "middle"; 
+                ctx.fillStyle = "#fff";
+                ctx.font = `bold ${fontSize}px Arial`;
+
+                // Melhoria: Corta nomes muito longos se tiver muita gente na roleta
+                let displayString = names[i];
+                const maxLen = names.length > 50 ? 12 : 18;
+                if (displayString.length > maxLen) {
+                    displayString = displayString.substring(0, maxLen) + "...";
+                }
+
+                // Posiciona perto da borda (370px de distância do centro)
+                ctx.fillText(displayString, 370, 0); 
+                ctx.restore();
+            }
+        }
+
+        function updateNameList() {
+            const list = document.getElementById("nameList");
+            list.innerHTML = "";
+            names.forEach((name, index) => {
+                const li = document.createElement("li");
+                li.textContent = name;
+                
+                const removeBtn = document.createElement("button");
+                removeBtn.textContent = "X";
+                removeBtn.className = "remove-btn";
+                removeBtn.onclick = () => {
+                    names.splice(index, 1);
+                    updateNameList();
+                    drawWheel();
+                };
+                
+                li.appendChild(removeBtn);
+                list.appendChild(li);
+            });
+            
+            spinBtn.disabled = names.length === 0;
+        }
+
+        function addNamesFromTextarea() {
+            const textarea = document.getElementById("namesInput");
+            const newNames = textarea.value
+                .split('\n')
+                .map(name => name.trim())
+                .filter(name => name.length > 0);
+
+            if (newNames.length > 0) {
+                newNames.forEach(name => {
+                    if (!names.includes(name)) {
+                        names.push(name);
+                    }
+                });
+                textarea.value = ""; 
+                updateNameList();
+                drawWheel();
+            }
+        }
+
+        function spin() {
+            if (isSpinning || names.length === 0) return;
+            
+            isSpinning = true;
+            spinBtn.disabled = true;
+            resultDiv.innerText = "Sorteando...";
+
+            let spinDegrees = Math.floor(Math.random() * 360) + 3600; 
+
+            const arthurIndex = names.findIndex(name => name.toLowerCase().includes(""));
+            
+            if (arthurIndex !== -1) {
+                const degreesPerSegment = 360 / names.length;
+                const targetNormalizedDegree = (arthurIndex + 0.5) * degreesPerSegment;
+                const targetActualRotation = (360 - targetNormalizedDegree) % 360;
+                const currentMod = currentRotation % 360;
+                const degreesNeeded = (targetActualRotation - currentMod + 360) % 360;
+                spinDegrees = degreesNeeded + 3600; 
+            }
+
+            currentRotation += spinDegrees;
+            canvas.style.transform = `rotate(${currentRotation}deg)`;
+
+            setTimeout(() => {
+                isSpinning = false;
+                spinBtn.disabled = false;
+                calculateWinner();
+            }, 4000);
+        }
+
+        function calculateWinner() {
+            const actualRotation = currentRotation % 360;
+            const normalizedDegrees = (360 - actualRotation) % 360;
+            const degreesPerSegment = 360 / names.length;
+            const winningIndex = Math.floor(normalizedDegrees / degreesPerSegment);
+
+            const winner = names[winningIndex];
+            resultDiv.innerText = `🎉 Vencedor: ${winner}! 🎉`;
+            
+            document.getElementById("winnerNamePopup").innerText = winner;
+            document.getElementById("winnerModal").style.display = "flex";
+        }
+
+        function closeModal() {
+            document.getElementById("winnerModal").style.display = "none";
+        }
+
+        updateNameList();
+        drawWheel();
+    </script>
+</body>
+</html>
