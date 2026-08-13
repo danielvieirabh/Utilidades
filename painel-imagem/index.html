@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Manipulação de Imagem</title>
+    <!-- Link para o arquivo de estilos CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+    <div class="image-area">
+        <h1>Sua Imagem</h1>
+        <canvas id="canvas"></canvas>
+        <p class="info">Para salvar a imagem modificada, clique com o botão direito sobre ela e escolha "Salvar imagem como...".</p>
+    </div>
+
+    <div class="tools">
+        <div class="controls">
+            <h2>Ferramentas</h2>
+            <label for="imageLoader">1. Escolha uma imagem:</label>
+            <input type="file" id="imageLoader" name="imageLoader"/>
+
+            <label for="textInput">2. Adicionar texto <b>VISÍVEL</b> na imagem:</label>
+            <input type="text" id="textInput" placeholder="Digite seu texto aqui">
+            <button id="addTextButton">Adicionar Texto</button>
+        </div>
+
+        <div class="steganography">
+            <h2>Método Secreto (Esteganografia)</h2>
+            <label for="secretMessage">3. Esconder texto/código <b>DENTRO</b> da imagem (invisível):</label>
+            <textarea id="secretMessage" placeholder="Digite a mensagem ou código para esconder..."></textarea>
+            <button id="hideButton">Esconder na Imagem</button>
+
+            <label>4. Investigar imagem (revelar texto secreto):</label>
+            <button id="revealButton" class="secondary">Revelar Mensagem Escondida</button>
+            <div id="result"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Link para o arquivo JavaScript. Colocamos no final para que a página carregue primeiro. -->
+<script src="script.js"></script>
+
+</body>
+</html>
