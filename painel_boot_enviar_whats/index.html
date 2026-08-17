@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self';">
+    <title>Disparador WhatsApp</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Disparador Automático WhatsApp</h1>
+        <p>Preencha os dados. O sistema enviará automaticamente com pausas anti-spam.</p>
+        
+        <div class="form-group">
+            <label for="phoneNumbers">Números de Telefone (um por linha):</label>
+            <textarea id="phoneNumbers" rows="8" placeholder="Cole sua lista de números aqui..."></textarea>
+            <small>O bot fará pausas longas de 5 minutos a cada 40 contatos automaticamente.</small>
+        </div>
+        
+        <div class="form-group">
+            <label for="message">Sua Mensagem:</label>
+            <textarea id="message" rows="5" placeholder="Sua mensagem de divulgação aqui..."></textarea>
+        </div>
+        
+        <button id="sendButton">Enviar para a Lista</button>
+
+        <div id="status" class="status-area">Aguardando ação...</div>
+    </div>
+    <script src="renderer.js"></script>
+</body>
+</html>
