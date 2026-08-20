@@ -5,6 +5,12 @@ const puppeteer = require('puppeteer-core');
 const chromePath = '/usr/bin/google-chrome';
 let mainWindow;
 
+// Helper para pausas aleatórias, para simular comportamento humano
+const randomDelay = (min, max) => {
+    const delay = Math.floor(Math.random() * (max - min + 1)) + min;
+    return new Promise(resolve => setTimeout(resolve, delay));
+};
+
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 700,
@@ -59,57 +65,87 @@ ipcMain.on('send-whatsapp', async (event, { phones, message }) => {
         // Espera a tela lateral carregar para ter certeza que logou
         await page.waitForSelector('#pane-side', { timeout: 300000 }); 
 
-        const encodedMessage = encodeURIComponent(message);
+        // Variáveis para o controle de pausas longas e aleatórias
+        let messagesSentSinceLastBreak = 0;
+        let nextLongBreakAt = Math.floor(Math.random() * (200 - 100 + 1)) + 100; // Próxima pausa longa entre 100 e 200 msgs
 
         // LOOP DE ENVIO
         for (let i = 0; i < phones.length; i++) {
             const phone = phones[i];
             
-            // Usamos um try/catch DENTRO do loop para que, se um número falhar, ele não pare o programa todo
             try {
                 event.reply('update-status', `[${i + 1} de ${phones.length}] Carregando chat do número ${phone}...`);
                 
-                const whatsappUrl = `https://web.whatsapp.com/send?phone=${phone}&text=${encodedMessage}`;
+                // Abrimos o chat sem a mensagem pré-digitada para simular digitação real
+                const whatsappUrl = `https://web.whatsapp.com/send?phone=${phone}`;
                 await page.goto(whatsappUrl, { waitUntil: 'domcontentloaded' });
 
                 event.reply('update-status', `[${i + 1} de ${phones.length}] Aguardando a caixa de texto...`);
                 
-                // Espera pela caixa de texto de mensagem aparecer (se o número for inválido, ele pula pro catch)
                 const inputBoxSelector = 'div[contenteditable="true"][data-tab="10"], footer div[contenteditable="true"]';
                 const inputBox = await page.waitForSelector(inputBoxSelector, { timeout: 20000 });
 
-                // Foca na caixa de texto
                 await inputBox.focus();
+                await randomDelay(1000, 2000); // Pausa curta (1-2s) antes de digitar
                 
-                // SOLUÇÃO PARA NÚMEROS NOVOS: Digita um espaço e aperta Enter
-                event.reply('update-status', `[${i + 1} de ${phones.length}] Forçando envio da mensagem...`);
-                await page.keyboard.type(' '); // Digita um espaço para transformar o microfone em botão de enviar
-                await new Promise(resolve => setTimeout(resolve, 500)); // Espera meio segundo pro WhatsApp processar
-                await page.keyboard.press('Enter'); // Aperta o botão Enter no teclado para disparar
+                // Digita a mensagem com velocidade variável para simular comportamento humano
+                // event.reply('update-status', `[${i + 1} de ${phones.length}] Digitando a mensagem...`);
+                // const typingDelay = Math.floor(Math.random() * (50 - 10 + 1)) + 10; // Variação de 10-50ms por tecla
+                // await inputBox.type(message, { delay: typingDelay });
+                // Digita a mensagem com velocidade variável para simular comportamento humano
+                event.reply('update-status', `[${i + 1} de ${phones.length}] Digitando a mensagem...`);
+                const typingDelay = Math.floor(Math.random() * (50 - 10 + 1)) + 10; // Variação de 10-50ms por tecla
+                
+                // Divide a mensagem em parágrafos para não enviar picado
+                const lines = message.split('\n');
+                for (let j = 0; j < lines.length; j++) {
+                    await inputBox.type(lines[j], { delay: typingDelay });
+                    
+                    // Se não for a última linha, aperta Shift + Enter para pular a linha sem enviar
+                    if (j < lines.length - 1) {
+                        await page.keyboard.down('Shift');
+                        await page.keyboard.press('Enter');
+                        await page.keyboard.up('Shift');
+                    }
+                }
 
-                // Aguarda 2 segundos para dar tempo da mensagem subir para a rede
-                await new Promise(resolve => setTimeout(resolve, 2000)); 
+                await randomDelay(1000, 2000); // Pausa curta (1-2s) antes de enviar
 
-                // Se for o ÚLTIMO número da lista, encerra
+                event.reply('update-status', `[${i + 1} de ${phones.length}] Enviando mensagem...`);
+                await page.keyboard.press('Enter');
+
+                await randomDelay(2000, 4000); // Aguarda 2-4s para a mensagem ser processada
+
+                messagesSentSinceLastBreak++;
+
+                // Se for o último número da lista, não precisa pausar
                 if (i === phones.length - 1) {
                     continue;
                 }
 
-                // SISTEMA ANTI-BANIMENTO (PAUSAS)
-                if ((i + 1) % 40 === 0) {
-                    event.reply('update-status', `⏳ Segurança: Lote de 40 concluído. Descansando por 5 minutos...`);
-                    await new Promise(resolve => setTimeout(resolve, 60000)); // 1 minuto
+                // SISTEMA ANTI-BANIMENTO (PAUSAS ESTRATÉGICAS)
+                if (messagesSentSinceLastBreak >= nextLongBreakAt) {
+                    const longPause = Math.floor(Math.random() * (300000 - 120000 + 1)) + 120000; // 2-5 minutos
+                    const pauseInMinutes = Math.round(longPause / 60000);
+                    event.reply('update-status', `⏳ Segurança: Lote grande (${messagesSentSinceLastBreak}) concluído. Descansando por ~${pauseInMinutes} minutos...`);
+                    await randomDelay(longPause, longPause);
+                    
+                    messagesSentSinceLastBreak = 0;
+                    nextLongBreakAt = Math.floor(Math.random() * (200 - 100 + 1)) + 100;
+                } else if ((i + 1) % 40 === 0) {
+                    event.reply('update-status', `⏳ Segurança: Lote de 40 concluído. Descansando por 1 minuto...`);
+                    await randomDelay(60000, 60000); // 1 minuto
                 } else {
-                    const tempoEspera = Math.floor(Math.random() * (30000 - 15000 + 1)) + 15000;
-                    event.reply('update-status', `⏳ Pausa anti-spam: Aguardando ${Math.round(tempoEspera / 1000)} segundos...`);
-                    await new Promise(resolve => setTimeout(resolve, tempoEspera)); 
+                    const shortPause = Math.floor(Math.random() * (35000 - 15000 + 1)) + 15000; // 15-35 segundos
+                    event.reply('update-status', `⏳ Pausa anti-spam: Aguardando ${Math.round(shortPause / 1000)} segundos...`);
+                    await randomDelay(shortPause, shortPause);
                 }
 
             } catch (loopError) {
                 // Cai aqui se o número não tiver WhatsApp ou a internet falhar no meio
                 console.error(`Erro ao enviar para ${phone}:`, loopError);
                 event.reply('update-status', `⚠️ Aviso: Falha no número ${phone} (pode não ter WhatsApp). Pulando...`);
-                await new Promise(resolve => setTimeout(resolve, 3000)); // Pausa curta antes de ir pro próximo
+                await randomDelay(2500, 3500); // Pausa curta antes de ir pro próximo
             }
         }
 
@@ -121,6 +157,8 @@ ipcMain.on('send-whatsapp', async (event, { phones, message }) => {
         event.reply('update-status', `❌ Erro Grave: ${error.message}`);
     } finally {
         if (browser) {
+    
+             await browser.close();
             // Se quiser fechar o Chrome ao terminar, tire as barras abaixo:
             // await browser.close();
         }
